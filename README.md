@@ -1,56 +1,92 @@
 # FastAPI Threads/Groups Backend — Bootstrap
 
-This repository is a FastAPI backend scaffold for a social threads/groups platform. This commit implements the repo bootstrap (T#001) and provides a minimal skeleton to continue development.
+Minimal bootstrap for a FastAPI-based social threads/groups backend. This repository contains a small FastAPI app, Docker development stack (Postgres, Redis, MailHog), and helper scripts tuned for Windows/PowerShell local development.
 
-What's included:
-- Project layout (`app/`, `app/api/`, `app/core/`, `app/data/`, `app/services/`)
-- `requirements.txt` with core dependencies
-- `.env.example` with env var placeholders
-- `Dockerfile` and `docker-compose.yml` for local dev stack (Postgres, Redis, Mailhog)
-- `scripts/rebuild.ps1` to build and run locally
+## Quick summary
+- Framework: FastAPI (app skeleton in `app/`).
+- Python: Tested with Python 3.11 (recommended).
+- DB: PostgreSQL (containerized).
+- Cache: Redis (containerized).
+- Local SMTP: MailHog (containerized).
+- Docker Compose is used to run the full local stack.
 
-Quick start (local - Docker):
+## Project structure (high level)
+```
+app/
+  api/                # API routers will go here
+  core/               # config, security, utils
+  data/               # db provider, models, repositories
+  services/           # business logic / unit of work
+  main.py             # app entrypoint (uvicorn)
 
-1. Copy `.env.example` to `.env` and edit values.
-2. Run the rebuild script:
+docker/               # PowerShell scripts for docker workflows
+scripts/              # local dev PowerShell helpers (venv, run)
 
-	./scripts/rebuild.ps1
+Dockerfile
+docker-compose.yml
+requirements.txt
+.env.example
+README.md
+COPILOT.md
+COPILOT_INSTRUCTIONS.md
+```
 
-3. Open http://localhost:8000/docs for OpenAPI once the API starts.
+Files of interest (current):
+- `app/main.py` — minimal FastAPI app and health endpoint.
+- `app/core/config.py` — Pydantic `Settings` for environment config.
+- `requirements.txt` — pinned dependencies; adjusted for compatibility with FastAPI.
+- `Dockerfile` — builds the API image (uses Python 3.11 base image).
+- `docker-compose.yml` — development stack: `api`, `db`, `redis`, `mailhog`.
+- `docker/run.ps1` — PowerShell script to build/run the compose stack.
+- `docker/cleanup.ps1` — interactive cleanup (stop containers, optionally remove images/prune).
+- `scripts/init_venv.ps1` — create & populate a Python virtualenv on Windows.
+- `scripts/run.ps1` — run the app locally with the venv (uvicorn).
 
-Files created/edited in this task:
-- `app/main.py` — minimal FastAPI app with `/healthz`
-- `app/core/config.py` — basic Pydantic settings loader
-- `requirements.txt`, `.env.example`, `Dockerfile`, `docker-compose.yml`
-- `scripts/rebuild.ps1`, `.gitignore`
+## Docker and named volumes
+The compose file defines named volumes so they appear with readable names on the host. Current named volumes:
+- `backend_db_data` — Postgres data
+- `backend_redis_data` — Redis data
+- `backend_mailhog_data` — MailHog data
 
-Local dev scripts (bash):
-- `scripts/init_venv.sh` — create and populate a `.venv` from `requirements.txt`
-- `scripts/run.sh` — activate `.venv` and start the app with uvicorn
-
-PowerShell (Windows) helpers:
-- `scripts/init_venv.ps1` — create and populate a `.venv` from `requirements.txt` (PowerShell)
-- `scripts/run.ps1` — activate `.venv` and start the app with uvicorn (PowerShell)
-- `docker/run.ps1` — stop, remove, rebuild, and run containers via Docker Compose
-- `docker/cleanup.ps1` — clean up containers, optionally images, and free resources
-
-PowerShell usage (from project root):
+If you changed `docker-compose.yml` manually, recreate the stack so the named volumes are created/used:
 
 ```powershell
-# create venv and install deps
-.\scripts\init_venv.ps1
+# Stop and remove the current stack (keeps named volumes unless -v used)
+docker compose down --remove-orphans
 
-# start the app
-.\scripts\run.ps1
-
-# rebuild containers
-.\docker\run.ps1
-
-# cleanup resources
-.\docker\cleanup.ps1
+# Start stack and force rebuild of the API image
+docker compose up -d --build
 ```
-Next steps:
-- Implement settings & app factory, DB provider, models, repositories, and routers (T#002–T#006).
 
-If you want, I can proceed to implement T#002 now and wire configuration into the app.
-# backend
+If you want to remove anonymous volumes and switch entirely to the named ones (destructive):
+
+```powershell
+# This removes volumes attached to the stack (data loss if volumes contain app data)
+docker compose down -v --remove-orphans
+
+# Then recreate
+docker compose up -d --build
+```
+
+Use these commands only if you are sure you don't need existing container data.
+
+## Quickstart (Windows / PowerShell)
+1. Copy `.env.example` to `.env` and update values (at minimum: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`).
+2. Initialize a venv and install dependencies (optional if using containers):
+
+```powershell
+# from repo root
+.\scripts\init_venv.ps1
+```
+
+3. To run the full Docker stack (recommended for a consistent dev environment):
+
+```powershell
+.\docker\run.ps1
+```
+
+4. To run the API locally using the venv (no docker):
+
+```powershell
+.\scripts\run.ps1
+```
