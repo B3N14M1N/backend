@@ -1,19 +1,17 @@
-# Use official Python base image
+# syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Copy requirements and install
+# Install deps first for better layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
+# Copy your app code (adjust if your structure differs)
 COPY ./app/ ./app/
-COPY .env* ./
 
-# Expose port
 EXPOSE 8000
-
-# Run app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Dev server; drop --reload for prod
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--workers", "4"]
