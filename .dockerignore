@@ -1,4 +1,4 @@
-# Ignore Python cache and build artifacts
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -10,18 +10,18 @@ __pycache__/
 dist/
 build/
 
-# Virtual environments
+# Virtual envs
 .venv/
 venv/
 env/
 
-# Node / frontend stuff (if present)
+# Node (if present)
 node_modules/
 npm-debug.log
 yarn-error.log
 .pnpm-debug.log
 
-# Git & IDE files
+# Git & IDE
 .git/
 .gitignore
 .gitattributes
@@ -29,15 +29,15 @@ yarn-error.log
 .vscode/
 *.swp
 
-# Docker / Compose
-docker-compose.override.yml
-.dockerignore
-
 # OS junk
 .DS_Store
 Thumbs.db
 
-# Secrets / env files
+# Compose/Docker
+docker-compose.override.yml
+.dockerignore
+
+# Secrets / env
 .env
 .env.*
-!example.env   # keep your example in source control, ignore real envs
+!example.env   # keep the sample in VCS, ignore real envs
