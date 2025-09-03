@@ -1,12 +1,27 @@
 <#
 scripts/cleanup.ps1
-Clean up Docker containers, images, and volumes for the backend project.
+Clean up Docker resources for this project.
+
+Usage:
+  ./cleanup.ps1                 # containers only (keep images & volumes)
+  ./cleanup.ps1 -f              # containers + images (keep volumes)
+  ./cleanup.ps1 -Force          # same as -f
+  ./cleanup.ps1 -Nuke           # containers + images + volumes
+
+Notes:
+- Works with both "docker compose" (v2) and "docker-compose" (v1).
+- Uses --remove-orphans so stray compose containers are also cleaned.
 #>
+
+param(
+    [Alias('f')]
+    [switch]$Force,
+    [switch]$Nuke
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Function to check if Docker is running
 function Test-DockerRunning {
     Write-Host "Checking if Docker is running..." -ForegroundColor Blue
     $oldPreference = $ErrorActionPreference
@@ -28,78 +43,70 @@ function Test-DockerRunning {
     }
 }
 
-# Function to get docker compose command
 function Get-DockerComposeCommand {
     Write-Host "Detecting Docker Compose command..." -ForegroundColor Blue
-    # Try docker compose (v2)
     try {
-        Write-Host "Trying 'docker compose version'..." -ForegroundColor Gray
         $null = docker compose version 2>$null
         Write-Host "Found 'docker compose' (v2)" -ForegroundColor Green
         return "docker compose"
     } catch {
-        Write-Host "'docker compose' not found: $_" -ForegroundColor Yellow
-        # Try docker-compose (v1)
         try {
-            Write-Host "Trying 'docker-compose --version'..." -ForegroundColor Gray
             $null = docker-compose --version 2>$null
             Write-Host "Found 'docker-compose' (v1)" -ForegroundColor Green
             return "docker-compose"
         } catch {
-            Write-Host "'docker-compose' not found: $_" -ForegroundColor Red
+            Write-Host "No Docker Compose command found." -ForegroundColor Red
             return $null
         }
     }
 }
 
 if (-not (Test-DockerRunning)) {
-    Write-Error "Docker daemon is not accessible. Please ensure Docker (Desktop or Rancher Desktop) is running and the docker command is available in PATH, then try again."
+    Write-Error "Docker daemon is not accessible. Start Docker Desktop/Rancher Desktop and ensure 'docker' is in PATH."
     exit 1
 }
 
 $dockerComposeCmd = Get-DockerComposeCommand
 if (-not $dockerComposeCmd) {
-    Write-Error "Docker Compose is not available. Please install Docker Compose or ensure it's included with your Docker setup."
+    Write-Error "Docker Compose is not available. Please install it or ensure it's included with your Docker setup."
     exit 1
 }
 
 Write-Host "Using Docker Compose command: $dockerComposeCmd" -ForegroundColor Blue
 Write-Host ""
 
-# Stop and remove containers
-Write-Host "Stopping and removing containers..." -ForegroundColor Yellow
+# If both switches are provided, prioritize -Nuke
+if ($Nuke) {
+    Write-Host "NUKE MODE: removing containers + images + volumes..." -ForegroundColor Red
+    try {
+        # Project-scoped nuke: remove containers, images, and volumes defined by compose
+        Invoke-Expression "$dockerComposeCmd down -v --rmi all --remove-orphans"
+        Write-Host "Done. Containers, images, and volumes removed for this project." -ForegroundColor Green
+    } catch {
+        Write-Host "Nuke failed: $_" -ForegroundColor Red
+        exit 1
+    }
+    exit 0
+}
+
+if ($Force) {
+    Write-Host "FORCE MODE: removing containers + images (keeping volumes)..." -ForegroundColor Yellow
+    try {
+        Invoke-Expression "$dockerComposeCmd down --rmi all --remove-orphans"
+        Write-Host "Done. Containers and images removed (volumes preserved)." -ForegroundColor Green
+    } catch {
+        Write-Host "Force cleanup failed: $_" -ForegroundColor Red
+        exit 1
+    }
+    exit 0
+}
+
+# Default: containers only
+Write-Host "Default cleanup: removing containers (keeping images & volumes)..." -ForegroundColor Yellow
 try {
-    Invoke-Expression "$dockerComposeCmd down -v --remove-orphans"
-    Write-Host "Containers stopped and removed." -ForegroundColor Green
+    Invoke-Expression "$dockerComposeCmd down --remove-orphans"
+    Write-Host "Done. Containers removed; images and volumes preserved." -ForegroundColor Green
 } catch {
-    Write-Host "Failed to stop containers: $_" -ForegroundColor Red
+    Write-Host "Cleanup failed: $_" -ForegroundColor Red
+    exit 1
 }
-
-Write-Host ""
-
-# Ask about removing images
-$removeImages = Read-Host "Do you want to remove the Docker images? (y/N)"
-if ($removeImages -eq 'y' -or $removeImages -eq 'Y') {
-    Write-Host "Removing project images..." -ForegroundColor Yellow
-    try {
-        Invoke-Expression "$dockerComposeCmd down --rmi all"
-        Write-Host "Project images removed." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to remove project images: $_" -ForegroundColor Red
-    }
-
-    Write-Host ""
-    Write-Host "Removing unused images..." -ForegroundColor Yellow
-    try {
-        docker image prune -f
-        Write-Host "Unused images removed." -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to prune images: $_" -ForegroundColor Red
-    }
-} else {
-    Write-Host "Skipping image removal." -ForegroundColor Blue
-}
-
-Write-Host ""
-Write-Host "Cleanup complete!" -ForegroundColor Green
-Write-Host "Resources freed up." -ForegroundColor Cyan

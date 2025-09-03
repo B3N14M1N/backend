@@ -1,0 +1,43 @@
+# Ignore Python cache and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.db
+*.sqlite3
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node / frontend stuff (if present)
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Git & IDE files
+.git/
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+*.swp
+
+# Docker / Compose
+docker-compose.override.yml
+.dockerignore
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Secrets / env files
+.env
+.env.*
+!example.env   # keep your example in source control, ignore real envs
