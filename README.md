@@ -1,6 +1,4 @@
-# FastAPI Threads/Groups Backend — Bootstrap
-
-Minimal bootstrap for a FastAPI-based social threads/groups backend. This repository contains a small FastAPI app, Docker development stack (Postgres, Redis, MailHog), and helper scripts tuned for Windows/PowerShell local development.
+# FastAPI Backend 
 
 ## Quick summary
 - Framework: FastAPI (app skeleton in `app/`).
