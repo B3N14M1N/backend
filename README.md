@@ -1,67 +1,116 @@
-# FastAPI Backend 
+# FastAPI Backend Template
 
-## Quick summary
-- Framework: FastAPI (app skeleton in `app/`).
-- Python: Tested with Python 3.12 (recommended).
-- DB: PostgreSQL (containerized).
-- Cache: Redis (containerized).
-- Local SMTP: MailHog (containerized).
-- Docker Compose is used to run the full local stack.
+FastAPI template with async PostgreSQL, Redis caching, dependency injection, and clean architecture.
 
-Backend — Minimal Template
+## Project Structure
 
-This repository is a reusable template for a FastAPI backend using SQLModel (Pydantic + SQLAlchemy), Alembic migrations, Postgres and Redis. It includes helper scripts for local development and a minimal example model + seeder to exercise DB + Redis caching.
+```
+app/
+├── api/routers/           # API endpoints
+├── core/                  # Infrastructure (database, dependencies, config)
+├── data/
+│   ├── repositories/      # Data access layer
+│   └── schemas/           # Database models
+└── services/              # Business logic
+```
 
-Quick overview
-- Framework: FastAPI
-- Models: SQLModel (Pydantic + SQLAlchemy)
-- DB: PostgreSQL (docker-compose)
-- Cache: Redis
-- Migrations: Alembic
-
-Requirements
-- Docker & Docker Compose
-- PowerShell (Windows) or a POSIX shell for scripts
-
-Setup (local dev)
-1. Copy `.env.example` to `.env` and update credentials.
-2. Start services (build + recreate containers):
+## Quick Start
 
 ```powershell
 .\scripts\setup\run.ps1
-```
-
-3. Create the initial migration and apply it:
-
-```powershell
 .\scripts\setup\db.ps1 -Init
-# Use -f to auto-remove any existing files under alembic\versions
-```
-
-Seeding & testing
-- Seed a small template row:
-
-```powershell
 .\scripts\db\seed-template.ps1
 ```
 
-- Test the demo cache endpoint (after API is running):
+Access API at http://localhost:8000/docs
 
-```powershell
-curl.exe http://127.0.0.1:8000/test/template
+## How to Extend
+
+### Add Database Model
+1. Define model in `app/data/schemas/models.py`
+2. Create migration: `.\scripts\setup\db.ps1 -Revision -Message "add model"`
+3. Apply migration: `.\scripts\setup\db.ps1 -Upgrade`
+
+### Add Repository
+Create `app/data/repositories/my_repository.py`:
+```python
+class MyRepository:
+    def __init__(self, db_provider: DatabaseProvider):
+        self.db_provider = db_provider
+    
+    async def get_all(self) -> List[dict]:
+        async with self.db_provider.get_session() as session:
+            # Database operations
 ```
 
-Or go to the api [docs](http://localhost:8000/docs)
-
-4. Cleanup everything:
-```powershell
-.\scripts\cleanup.ps1 -Nuke
-# Use -Nuke to remove everything: Containers + Images + Volumes
+### Add Service
+Create `app/services/my_service.py`:
+```python
+class MyService:
+    def __init__(self, repository: MyRepository):
+        self.repository = repository
+    
+    async def get_items(self) -> dict:
+        return await self.repository.get_all()
 ```
 
+### Add Dependency
+Add to `app/core/dependencies.py`:
+```python
+@lru_cache()
+def get_my_service() -> MyService:
+    repository = MyRepository(get_database_provider())
+    return MyService(repository)
+```
 
-How to extend
-- Add models to `app/data/schemas/models.py`.
-- Create revisions with `./scripts/setup/db.ps1 -Revision -Message "desc"` and apply with `-Upgrade`.
-- Add routers in `app/api/routers/` and include them in `app/main.py`.
+### Add Router
+Create `app/api/routers/my_router.py`:
+```python
+router = APIRouter(prefix="/my", tags=["my"])
+
+@router.get("/items")
+async def get_items(service: MyService = Depends(get_my_service)):
+    return await service.get_items()
+```
+
+Include in `app/main.py`:
+```python
+from app.api.routers.my_router import router as my_router
+app.include_router(my_router)
+```
+
+## Scripts
+
+### run.ps1
+- `.\scripts\setup\run.ps1` - Build and start containers
+- `.\scripts\setup\run.ps1 -Rebuild` - Force rebuild (no cache)
+- `.\scripts\setup\run.ps1 -Start` - Start without rebuild
+
+### db.ps1
+- `.\scripts\setup\db.ps1 -Init` - Initialize database with migrations
+- `.\scripts\setup\db.ps1 -Revision -Message "desc"` - Create new migration
+- `.\scripts\setup\db.ps1 -Upgrade` - Apply migrations
+- `.\scripts\setup\db.ps1 -Downgrade -Rev -1` - Rollback one migration
+- `.\scripts\setup\db.ps1 -Backup` - Backup database to ./backups/
+- `.\scripts\setup\db.ps1 -Restore -File backup.sql` - Restore from backup
+- `.\scripts\setup\db.ps1 -Rebuild` - Drop and recreate database
+
+### cleanup.ps1
+- `.\scripts\cleanup.ps1` - Remove containers
+- `.\scripts\cleanup.ps1 -Force` - Remove containers and images
+- `.\scripts\cleanup.ps1 -Nuke` - Remove everything (containers, images, volumes)
+
+### collect-logs.ps1
+- `.\scripts\collect-logs.ps1` - Collect logs to ./logs/timestamp/
+- `.\scripts\collect-logs.ps1 -Follow` - Stream live logs
+- `.\scripts\collect-logs.ps1 -Reproduce` - Capture logs during request reproduction
+
+### seed-template.ps1
+- `.\scripts\db\seed-template.ps1` - Insert sample template data
+
+## Services
+- API: http://localhost:8000
+- Database: PostgreSQL (port 5432)
+- Cache: Redis (port 6379)
+- Mail: MailHog UI (http://localhost:8025)
 

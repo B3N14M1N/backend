@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install deps first for better layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt && \
+    pip cache purge
 
 # Copy your app code (adjust if your structure differs)
 COPY ./app/ ./app/
