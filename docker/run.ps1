@@ -4,6 +4,11 @@ Stop and remove running containers, remove images, rebuild, and run via Docker C
 Based on template from previous project.
 #>
 
+Param(
+    [switch]$Rebuild,
+    [switch]$Start
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -67,54 +72,53 @@ if (-not $dockerComposeCmd) {
 Write-Host "Using Docker Compose command: $dockerComposeCmd" -ForegroundColor Blue
 
 Write-Host ""
-Write-Host "Cleaning up existing containers..." -ForegroundColor Yellow
+Write-Host "Preparing Docker Compose actions..." -ForegroundColor Yellow
 
-# Stop and remove all running containers for this project
-try {
-    Invoke-Expression "$dockerComposeCmd down -v --remove-orphans"
-    Write-Host "Stopped and removed existing containers" -ForegroundColor Green
-} catch {
-    Write-Host "No existing containers to clean up or failed to stop: $_" -ForegroundColor Blue
-}
+# Decide action based on switches:
+# -Rebuild: remove containers + volumes, build with --no-cache, recreate everything
+# -Start: recreate containers only (no build)
+# no switch: build (using cache) and recreate containers
 
-Write-Host ""
-Write-Host "Removing images..." -ForegroundColor Yellow
 try {
-    Invoke-Expression "$dockerComposeCmd rm --force"
-    Write-Host "Removed images" -ForegroundColor Green
-} catch {
-    Write-Host "Failed to remove images: $_" -ForegroundColor Red
-}
+    if ($Rebuild) {
+        Write-Host "REBUILD requested: stopping and removing containers + volumes" -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd down -v --remove-orphans"
+        Write-Host "Removed containers and volumes" -ForegroundColor Green
 
-Write-Host ""
-Write-Host "Building Docker images..." -ForegroundColor Yellow
-try {
-    Invoke-Expression "$dockerComposeCmd build --no-cache"
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Docker images built successfully" -ForegroundColor Green
+        Write-Host "Building Docker images (no cache) ..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd build --no-cache"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose build failed with exit code $LASTEXITCODE" }
+
+        Write-Host "Starting containers..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd up -d"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
+
+        Write-Host "Rebuild complete: images, containers and volumes recreated." -ForegroundColor Green
+    } elseif ($Start) {
+        Write-Host "START requested: recreating containers only (no build, no volume removal)" -ForegroundColor Yellow
+        # Force recreate containers using existing images
+        Invoke-Expression "$dockerComposeCmd up -d --force-recreate --remove-orphans"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
+
+        Write-Host "Containers recreated." -ForegroundColor Green
     } else {
-        Write-Host "Failed to build Docker images" -ForegroundColor Red
-        exit 1
-    }
-} catch {
-    Write-Host "Error building images: $_" -ForegroundColor Red
-    exit 1
-}
+        Write-Host "Default action: rebuild images (using cache) and recreate containers" -ForegroundColor Yellow
 
-Write-Host ""
-Write-Host "Starting containers..." -ForegroundColor Yellow
-try {
-    Invoke-Expression "$dockerComposeCmd up -d"
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Containers started successfully!" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "Your backend is running at: http://localhost:8000" -ForegroundColor Cyan
-        Write-Host "API docs at: http://localhost:8000/docs" -ForegroundColor Cyan
-    } else {
-        Write-Host "Failed to start containers" -ForegroundColor Red
-        exit 1
+        Write-Host "Building Docker images (use cache) ..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd build"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose build failed with exit code $LASTEXITCODE" }
+
+        Write-Host "Starting containers (force recreate) ..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd up -d --force-recreate --remove-orphans"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
+
+        Write-Host "Images built and containers recreated." -ForegroundColor Green
     }
+
+    Write-Host ""; Write-Host "Your backend is running at: http://localhost:8000" -ForegroundColor Cyan
+    Write-Host "API docs at: http://localhost:8000/docs" -ForegroundColor Cyan
+
 } catch {
-    Write-Host "Error starting containers: $_" -ForegroundColor Red
+    Write-Host "Error during requested action: $_" -ForegroundColor Red
     exit 1
 }
