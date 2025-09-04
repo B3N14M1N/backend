@@ -2,7 +2,7 @@
 
 ## Quick summary
 - Framework: FastAPI (app skeleton in `app/`).
-- Python: Tested with Python 3.11 (recommended).
+- Python: Tested with Python 3.12 (recommended).
 - DB: PostgreSQL (containerized).
 - Cache: Redis (containerized).
 - Local SMTP: MailHog (containerized).
