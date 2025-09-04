@@ -36,7 +36,7 @@ Setup (local dev)
 3. Create the initial migration and apply it:
 
 ```powershell
-.\scripts\db\db.ps1 -Init
+.\scripts\setup\db.ps1 -Init
 # Use -f to auto-remove any existing files under alembic\versions
 ```
 
@@ -55,8 +55,15 @@ curl.exe http://127.0.0.1:8000/test/template
 
 Or go to the api [docs](http://localhost:8000/docs)
 
+4. Cleanup everything:
+```powershell
+.\scripts\cleanup.ps1 -Nuke
+# Use -Nuke to remove everything: Containers + Images + Volumes
+```
+
+
 How to extend
 - Add models to `app/data/schemas/models.py`.
-- Create revisions with `./scripts/db/db.ps1 -Revision -Message "desc"` and apply with `-Upgrade`.
+- Create revisions with `./scripts/setup/db.ps1 -Revision -Message "desc"` and apply with `-Upgrade`.
 - Add routers in `app/api/routers/` and include them in `app/main.py`.
 

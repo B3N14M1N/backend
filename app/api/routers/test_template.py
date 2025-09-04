@@ -18,10 +18,18 @@ def _build_db_url() -> str:
     return f"postgresql://{user}:{pw}@{host}:{port}/{db}"
 
 
-def _fetch_templates_sync(db_url: str):
-    from sqlalchemy import create_engine
+from sqlalchemy import create_engine
 
-    engine = create_engine(db_url)
+# add a simple module‑level lazy engine
+_sync_engine = None
+def _get_sync_engine(db_url: str):
+    global _sync_engine
+    if _sync_engine is None:
+        _sync_engine = create_engine(db_url, pool_pre_ping=True)
+    return _sync_engine
+
+def _fetch_templates_sync(db_url: str):
+    engine = _get_sync_engine(db_url)
     with engine.connect() as conn:
         result = conn.execute(text("SELECT id, title, status, created_at FROM templateitem ORDER BY id"))
         return [ {"id": row[0], "title": row[1], "status": row[2], "created_at": str(row[3])} for row in result.fetchall() ]
