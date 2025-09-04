@@ -27,7 +27,8 @@ param(
   [switch]$Restore,
   [string]$File,
   [switch]$Rebuild,
-  [string]$Project
+  [string]$Project,
+  [Alias('f')][switch]$Force
 )
 
 Set-StrictMode -Version Latest
@@ -120,6 +121,30 @@ Write-Host "Using: $composePretty  (project=$ProjectName)" -ForegroundColor Blue
 if ($Init) {
   Write-Host "Generating initial migration from models and upgrading to head..." -ForegroundColor Yellow
   # Ensure db is up for autogenerate
+  # If there are leftover migration files, offer to remove them to avoid autogenerate conflicts
+  $versionsDir = "alembic\versions"
+  if (Test-Path $versionsDir) {
+  $existing = @(Get-ChildItem -Path $versionsDir -File -ErrorAction SilentlyContinue)
+    if ($existing -and $existing.Count -gt 0) {
+  Write-Host "Detected existing files in ${versionsDir}:" -ForegroundColor Yellow
+      $existing | ForEach-Object { Write-Host " - $($_.Name)" }
+      if ($Force) {
+        Write-Host "-Force supplied: removing existing migration files..." -ForegroundColor Yellow
+        $remove = $true
+      } else {
+        $answer = Read-Host "Remove these files before init? (y/N)"
+        $remove = ($answer -and $answer.ToLower().StartsWith('y'))
+      }
+      if ($remove) {
+        Write-Host "Removing existing migration files..." -ForegroundColor Yellow
+        Get-ChildItem -Path $versionsDir -File | Remove-Item -Force
+        Write-Host "Removed files in $versionsDir" -ForegroundColor Green
+      } else {
+        Write-Host "Keeping existing migration files. Be aware autogenerate may produce conflicts." -ForegroundColor Cyan
+      }
+    }
+  }
+
   Compose-Run -Args @("-p",$ProjectName,"up","-d","db","--remove-orphans") | Out-Null
   Wait-DbHealthy
   if (!(Test-Path "alembic\versions")) { New-Item -ItemType Directory "alembic\versions" | Out-Null }
