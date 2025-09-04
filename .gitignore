@@ -8,4 +8,5 @@ __pycache__/
 .vscode/
 .github/
 *.egg-info
-alembic/versions/*.py
+alembic/versions/
+logs/
