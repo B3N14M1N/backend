@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 .idea/
 .vscode/
-#.github/
+.github/
 *.egg-info
+alembic/versions/*.py
