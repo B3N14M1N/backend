@@ -142,7 +142,6 @@ Each post’s `content` field is a JSON object with:
 ## 7) Docker & Local Orchestration
 - Dockerfile: slim Python, uvicorn workers.
 - docker-compose: api, postgres, redis, mailhog.
-- scripts/rebuild.sh: stop, clean image, build, up, migrate.
 
 ---
 
