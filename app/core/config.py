@@ -2,7 +2,7 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "threads-groups-backend"
+    app_name: str = "backend"
     secret_key: str
     database_url: str
     redis_url: str

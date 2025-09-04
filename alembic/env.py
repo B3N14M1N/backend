@@ -8,18 +8,16 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from sqlmodel import SQLModel
 
-# --- ensure project root is importable before importing models ---
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.data import models  # requires app/__init__.py and app/data/__init__.py
+from app.data.schemas import models
 
 config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-# ---- Build DB URL strictly from POSTGRES_* ----
 pg_user = os.getenv("POSTGRES_USER")
 pg_password = os.getenv("POSTGRES_PASSWORD")
 pg_db = os.getenv("POSTGRES_DB")
@@ -52,7 +50,6 @@ def _mask_db_url(url: str) -> str:
     except Exception:
         return url
 
-# --- prevent autogenerate from touching Alembic's own table ---
 def include_object(obj, name, type_, reflected, compare_to):
     if type_ == "table" and name == "alembic_version":
         return False
@@ -99,7 +96,7 @@ async def run_migrations_online() -> None:
             await conn.exec_driver_sql(f"SET lock_timeout = '{LOCK_TIMEOUT_MS}ms'")
             await conn.exec_driver_sql(f"SET statement_timeout = '{STMT_TIMEOUT_MS}ms'")
 
-            # ✅ make sure the version table exists in 'public' before Alembic stamps it
+            # make sure the version table exists in 'public' before Alembic stamps it
             await conn.exec_driver_sql("""
                 CREATE TABLE IF NOT EXISTS public.alembic_version (
                     version_num VARCHAR(32) NOT NULL PRIMARY KEY
