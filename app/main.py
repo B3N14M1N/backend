@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 
-from app.api.test_cache import router as test_router
+from app.api.routers.test_template import router as test_router
 
 
-app = FastAPI(title="Threads/Groups Backend")
+app = FastAPI(title="FastAPI Template Backend")
 
 
 @app.get("/healthz")
