@@ -95,12 +95,12 @@ When making code changes to the FastAPI application:
 ### run.ps1
 - `.\scripts\setup\run.ps1` - Build and start containers
 - `.\scripts\setup\run.ps1 -Rebuild` - Force rebuild (removes cache)
-- `.\scripts\setup\run.ps1 -Start` - Start without rebuild (only containers containers)
+- `.\scripts\setup\run.ps1 -Start` - Start without rebuild (only containers)
 - `.\scripts\setup\run.ps1 -Build` - Rebuild only backend image/container (for code changes)
 
 ### db.ps1
 - `.\scripts\setup\db.ps1 -Init` - Initialize database with migrations
-- `.\scripts\setup\db.ps1 -Revision -Message "desc"` - Create new migration
+- `.\scripts\setup\db.ps1 -Revision -Message "<description>"` - Create new migration
 - `.\scripts\setup\db.ps1 -Upgrade` - Apply migrations
 - `.\scripts\setup\db.ps1 -Downgrade -Rev -1` - Rollback one migration
 - `.\scripts\setup\db.ps1 -Backup` - Backup database to ./backups/
