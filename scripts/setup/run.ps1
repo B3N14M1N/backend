@@ -1,12 +1,26 @@
 <#
-scripts/rebuild.ps1
-Stop and remove running containers, remove images, rebuild, and run via Docker Compose.
+scripts/setup/run.ps1
+Docker Compose management script for the backend application.
+
+Commands:
+  run.ps1                 - Build images (using cache) and recreate containers
+  run.ps1 -Rebuild        - Stop containers, remove volumes, rebuild images (no cache), start fresh
+  run.ps1 -Start          - Recreate containers only (no build, use existing images)
+  run.ps1 -Build          - Rebuild only the api image and recreate api container (for code changes)
+
+Examples:
+  .\run.ps1               # Quick restart with cached build
+  .\run.ps1 -Rebuild      # Full clean rebuild (when dependencies change)
+  .\run.ps1 -Start        # Quick container restart (no build)
+  .\run.ps1 -Build        # Rebuild api only (when code changes)
+
 Based on template from previous project.
 #>
 
 Param(
     [switch]$Rebuild,
-    [switch]$Start
+    [switch]$Start,
+    [switch]$Build
 )
 
 Set-StrictMode -Version Latest
@@ -77,6 +91,7 @@ Write-Host "Preparing Docker Compose actions..." -ForegroundColor Yellow
 # Decide action based on switches:
 # -Rebuild: remove containers + volumes, build with --no-cache, recreate everything
 # -Start: recreate containers only (no build)
+# -Build: rebuild only the api image and recreate api container
 # no switch: build (using cache) and recreate containers
 
 try {
@@ -101,6 +116,24 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
 
         Write-Host "Containers recreated." -ForegroundColor Green
+    } elseif ($Build) {
+        Write-Host "BUILD requested: rebuilding api image and recreating api container only" -ForegroundColor Yellow
+        
+        # Stop only the api container
+        Invoke-Expression "$dockerComposeCmd stop api"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose stop api failed with exit code $LASTEXITCODE" }
+
+        # Rebuild only the api service
+        Write-Host "Building api image..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd build api"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose build api failed with exit code $LASTEXITCODE" }
+
+        # Start the api container (this will recreate it with the new image)
+        Write-Host "Starting api container..." -ForegroundColor Yellow
+        Invoke-Expression "$dockerComposeCmd up -d api"
+        if ($LASTEXITCODE -ne 0) { throw "docker compose up api failed with exit code $LASTEXITCODE" }
+
+        Write-Host "API image rebuilt and container recreated." -ForegroundColor Green
     } else {
         Write-Host "Default action: rebuild images (using cache) and recreate containers" -ForegroundColor Yellow
 

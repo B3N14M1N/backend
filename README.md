@@ -79,12 +79,24 @@ from app.api.routers.my_router import router as my_router
 app.include_router(my_router)
 ```
 
+## Development Workflow
+
+When making code changes to the FastAPI application:
+```powershell
+# After modifying Python code (fast rebuild)
+.\scripts\setup\run.ps1 -Build
+
+# After changing dependencies in requirements.txt (full rebuild)
+.\scripts\setup\run.ps1 -Rebuild
+```
+
 ## Scripts
 
 ### run.ps1
 - `.\scripts\setup\run.ps1` - Build and start containers
-- `.\scripts\setup\run.ps1 -Rebuild` - Force rebuild (no cache)
-- `.\scripts\setup\run.ps1 -Start` - Start without rebuild
+- `.\scripts\setup\run.ps1 -Rebuild` - Force rebuild (removes cache)
+- `.\scripts\setup\run.ps1 -Start` - Start without rebuild (only containers containers)
+- `.\scripts\setup\run.ps1 -Build` - Rebuild only backend image/container (for code changes)
 
 ### db.ps1
 - `.\scripts\setup\db.ps1 -Init` - Initialize database with migrations
@@ -97,7 +109,7 @@ app.include_router(my_router)
 
 ### cleanup.ps1
 - `.\scripts\cleanup.ps1` - Remove containers
-- `.\scripts\cleanup.ps1 -Force` - Remove containers and images
+- `.\scripts\cleanup.ps1 -Force` - Remove containers and images (keeps db volume)
 - `.\scripts\cleanup.ps1 -Nuke` - Remove everything (containers, images, volumes)
 
 ### collect-logs.ps1
