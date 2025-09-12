@@ -221,6 +221,9 @@ if ($Rebuild) {
   Compose-Run -Args @("-p",$ProjectName,"up","-d","--no-deps","--force-recreate","db","redis") | Out-Null
 
   Wait-DbHealthy
+  # Remove existing alembic versions in the api container to avoid conflicts during rebuild
+  Write-Host "Removing existing alembic versions in api container..." -ForegroundColor Yellow
+  Compose-Run -Args @("-p",$ProjectName,"run","--rm","api","rm","-rf","alembic/versions") | Out-Null
 
   # Run migrations after db is healthy
   Compose-Run -Args @("-p",$ProjectName,"run","--rm","api","alembic","upgrade","head")
