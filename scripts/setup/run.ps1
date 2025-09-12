@@ -4,15 +4,17 @@ Docker Compose management script for the backend application.
 
 Commands:
   run.ps1                 - Build images (using cache) and recreate containers
-  run.ps1 -Rebuild        - Stop containers, remove volumes, rebuild images (no cache), start fresh
+  run.ps1 -Rebuild        - Stop containers, remove volumes, rebuild images, start fresh
   run.ps1 -Start          - Recreate containers only (no build, use existing images)
   run.ps1 -Build          - Rebuild only the api image and recreate api container (for code changes)
+  -NoCache                - Disable build cache (force rebuild from scratch)
 
 Examples:
   .\run.ps1               # Quick restart with cached build
-  .\run.ps1 -Rebuild      # Full clean rebuild (when dependencies change)
+  .\run.ps1 -Rebuild      # Full clean rebuild (with cache)
   .\run.ps1 -Start        # Quick container restart (no build)
-  .\run.ps1 -Build        # Rebuild api only (when code changes)
+  .\run.ps1 -Build        # Rebuild api only (with cache)
+  .\run.ps1 -Rebuild -NoCache  # Full rebuild without cache (when dependencies change)
 
 Based on template from previous project.
 #>
@@ -20,7 +22,8 @@ Based on template from previous project.
 Param(
     [switch]$Rebuild,
     [switch]$Start,
-    [switch]$Build
+    [switch]$Build,
+    [switch]$NoCache
 )
 
 Set-StrictMode -Version Latest
@@ -89,9 +92,10 @@ Write-Host ""
 Write-Host "Preparing Docker Compose actions..." -ForegroundColor Yellow
 
 # Decide action based on switches:
-# -Rebuild: remove containers + volumes, build with --no-cache, recreate everything
+# -Rebuild: remove containers + volumes, build, recreate everything
 # -Start: recreate containers only (no build)
 # -Build: rebuild only the api image and recreate api container
+# -NoCache: disable build cache
 # no switch: build (using cache) and recreate containers
 
 try {
@@ -100,8 +104,20 @@ try {
         Invoke-Expression "$dockerComposeCmd down -v --remove-orphans"
         Write-Host "Removed containers and volumes" -ForegroundColor Green
 
-        Write-Host "Building Docker images (no cache) ..." -ForegroundColor Yellow
-        Invoke-Expression "$dockerComposeCmd build --no-cache"
+        # Remove existing alembic versions to avoid conflicts during rebuild
+        Write-Host "Removing existing alembic versions..." -ForegroundColor Yellow
+        if (Test-Path "alembic/versions") {
+            Remove-Item -Recurse -Force "alembic/versions"
+            Write-Host "Alembic versions removed." -ForegroundColor Green
+        } else {
+            Write-Host "No alembic versions directory found." -ForegroundColor Gray
+        }
+
+        Write-Host "Building Docker images..." -ForegroundColor Yellow
+        $buildCmd = "$dockerComposeCmd build"
+        if ($NoCache) { $buildCmd += " --no-cache" }
+        $buildCmd += " api"
+        Invoke-Expression $buildCmd
         if ($LASTEXITCODE -ne 0) { throw "docker compose build failed with exit code $LASTEXITCODE" }
 
         Write-Host "Starting containers..." -ForegroundColor Yellow
@@ -125,7 +141,10 @@ try {
 
         # Rebuild only the api service
         Write-Host "Building api image..." -ForegroundColor Yellow
-        Invoke-Expression "$dockerComposeCmd build api"
+        $buildCmd = "$dockerComposeCmd build"
+        if ($NoCache) { $buildCmd += " --no-cache" }
+        $buildCmd += " api"
+        Invoke-Expression $buildCmd
         if ($LASTEXITCODE -ne 0) { throw "docker compose build api failed with exit code $LASTEXITCODE" }
 
         # Start the api container (this will recreate it with the new image)
@@ -137,8 +156,11 @@ try {
     } else {
         Write-Host "Default action: rebuild images (using cache) and recreate containers" -ForegroundColor Yellow
 
-        Write-Host "Building Docker images (use cache) ..." -ForegroundColor Yellow
-        Invoke-Expression "$dockerComposeCmd build"
+        Write-Host "Building Docker images..." -ForegroundColor Yellow
+        $buildCmd = "$dockerComposeCmd build"
+        if ($NoCache) { $buildCmd += " --no-cache" }
+        $buildCmd += " api"
+        Invoke-Expression $buildCmd
         if ($LASTEXITCODE -ne 0) { throw "docker compose build failed with exit code $LASTEXITCODE" }
 
         Write-Host "Starting containers (force recreate) ..." -ForegroundColor Yellow

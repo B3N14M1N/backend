@@ -17,12 +17,14 @@ app/
 ## Quick Start
 
 ```powershell
-.\scripts\setup\run.ps1
-.\scripts\setup\db.ps1 -Init
-.\scripts\db\seed-template.ps1
+.\scripts\setup\run.ps1              # Build and start with cached images
+.\scripts\setup\db.ps1 -Init         # Initialize database
+.\scripts\db\seed-template.ps1       # Seed sample data
 ```
 
 Access API at http://localhost:8000/docs
+
+**Tip:** Subsequent runs use cached builds for faster startup. Use `-NoCache` if you've changed dependencies.
 
 ## How to Extend
 
@@ -83,20 +85,27 @@ app.include_router(my_router)
 
 When making code changes to the FastAPI application:
 ```powershell
-# After modifying Python code (fast rebuild)
+# After modifying Python code (fast rebuild with cache)
 .\scripts\setup\run.ps1 -Build
 
-# After changing dependencies in requirements.txt (full rebuild)
-.\scripts\setup\run.ps1 -Rebuild
+# After changing dependencies in requirements.txt (full rebuild without cache)
+.\scripts\setup\run.ps1 -Rebuild -NoCache
+
+# Quick restart with cached build
+.\scripts\setup\run.ps1
 ```
 
 ## Scripts
 
+**Note:** The run.ps1 script now reuses PostgreSQL, Redis, and MailHog images by default to avoid unnecessary downloads. Use `-NoCache` when dependencies change to force a complete rebuild.
+
 ### run.ps1
-- `.\scripts\setup\run.ps1` - Build and start containers
-- `.\scripts\setup\run.ps1 -Rebuild` - Force rebuild (removes cache)
+- `.\scripts\setup\run.ps1` - Build and start containers (with cache)
+- `.\scripts\setup\run.ps1 -Rebuild` - Full rebuild (removes containers/volumes, with cache)
 - `.\scripts\setup\run.ps1 -Start` - Start without rebuild (only containers)
-- `.\scripts\setup\run.ps1 -Build` - Rebuild only backend image/container (for code changes)
+- `.\scripts\setup\run.ps1 -Build` - Rebuild only backend image/container (with cache)
+- `.\scripts\setup\run.ps1 -NoCache` - Disable build cache (use with other commands)
+- `.\scripts\setup\run.ps1 -Rebuild -NoCache` - Full rebuild without cache (for dependency changes)
 
 ### db.ps1
 - `.\scripts\setup\db.ps1 -Init` - Initialize database with migrations
