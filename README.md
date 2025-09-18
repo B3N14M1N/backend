@@ -6,12 +6,13 @@ FastAPI template with async PostgreSQL, Redis caching, dependency injection, and
 
 ```
 app/
-├── api/routers/           # API endpoints
+├── api/routers/           # API endpoints with DTO-based request/response models
 ├── core/                  # Infrastructure (database, dependencies, config)
 ├── data/
-│   ├── repositories/      # Data access layer
-│   └── schemas/           # Database models
-└── services/              # Business logic
+│   ├── DTO/              # Data Transfer Objects (request/response models)
+│   ├── repositories/     # Data access layer with base repository pattern
+│   └── schemas/          # Database models (SQLModel entities)
+└── services/             # Business logic with DTO transformations
 ```
 
 ## Quick Start
@@ -29,31 +30,104 @@ Access API at http://localhost:8000/docs
 ## How to Extend
 
 ### Add Database Model
-1. Define model in `app/data/schemas/models.py`
+1. Define model in `app/data/schemas/models.py` using SQLModel with UUID primary key:
+```python
+from uuid import UUID, uuid4
+from sqlmodel import SQLModel, Field
+
+class MyModel(SQLModel, table=True):
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    name: str
+    # other fields...
+```
 2. Create migration: `.\scripts\setup\db.ps1 -Revision -Message "add model"`
 3. Apply migration: `.\scripts\setup\db.ps1 -Upgrade`
 
 ### Add Repository
-Create `app/data/repositories/my_repository.py`:
+Create `app/data/repositories/my_repository.py` extending BaseRepository:
 ```python
-class MyRepository:
+from app.data.repositories.base_repository import BaseRepository
+from app.data.schemas.models import MyModel
+from app.core.database import DatabaseProvider
+
+class MyRepository(BaseRepository[MyModel]):
     def __init__(self, db_provider: DatabaseProvider):
-        self.db_provider = db_provider
+        super().__init__(db_provider, MyModel)
     
-    async def get_all(self) -> List[dict]:
-        async with self.db_provider.get_session() as session:
-            # Database operations
+    # Inherit all CRUD operations (create, get_by_id, get_all, update, delete_by_id, etc.)
+    # Add custom methods as needed:
+    async def find_by_name(self, name: str) -> List[MyModel]:
+        return await self.find_all(name=name)  # Using enhanced find_all with criteria
+```
+
+### Add DTOs
+Create `app/data/DTO/my_dto.py` for request/response models:
+```python
+from pydantic import BaseModel, Field
+from uuid import UUID
+from datetime import datetime
+
+class MyCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+
+class MyUpdateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+
+class MyResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 ```
 
 ### Add Service
-Create `app/services/my_service.py`:
+Create `app/services/my_service.py` with DTO transformations:
 ```python
+from uuid import UUID
+from typing import Optional, List
+from app.data.schemas.models import MyModel
+from app.data.DTO.my_dto import MyCreateRequest, MyUpdateRequest, MyResponse
+
 class MyService:
     def __init__(self, repository: MyRepository):
         self.repository = repository
     
-    async def get_items(self) -> dict:
-        return await self.repository.get_all()
+    async def get_items(self, limit: int = 100, offset: int = 0) -> List[MyResponse]:
+        items = await self.repository.get_all(limit=limit, offset=offset)
+        return [MyResponse.model_validate(item) for item in items]
+    
+    async def get_item_by_id(self, item_id: UUID) -> Optional[MyResponse]:
+        item = await self.repository.get_by_id(item_id)
+        return MyResponse.model_validate(item) if item else None
+    
+    async def create_item(self, create_request: MyCreateRequest) -> MyResponse:
+        # Convert DTO to entity
+        item_entity = MyModel(
+            name=create_request.name,
+            description=create_request.description
+        )
+        
+        # Use base repository create method
+        created_item = await self.repository.create(item_entity)
+        
+        # Return response DTO
+        return MyResponse.model_validate(created_item)
+    
+    async def update_item(self, item_id: UUID, update_request: MyUpdateRequest) -> Optional[MyResponse]:
+        update_data = update_request.model_dump(exclude_none=True)
+        if not update_data:
+            return await self.get_item_by_id(item_id)
+        
+        try:
+            updated_item = await self.repository.update_by_id(item_id, update_data)
+            return MyResponse.model_validate(updated_item)
+        except ValueError:
+            return None
 ```
 
 ### Add Dependency
@@ -66,13 +140,102 @@ def get_my_service() -> MyService:
 ```
 
 ### Add Router
-Create `app/api/routers/my_router.py`:
+Create `app/api/routers/my_router.py` with DTO-based endpoints:
 ```python
+from uuid import UUID
+from fastapi import APIRouter, HTTPException, Depends, Query
+from app.data.DTO.my_dto import MyCreateRequest, MyUpdateRequest, MyResponse
+
 router = APIRouter(prefix="/my", tags=["my"])
 
-@router.get("/items")
-async def get_items(service: MyService = Depends(get_my_service)):
-    return await service.get_items()
+@router.get("/items", response_model=List[MyResponse])
+async def get_items(
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    service: MyService = Depends(get_my_service)
+):
+    return await service.get_items(limit=limit, offset=offset)
+
+@router.get("/items/{item_id}", response_model=MyResponse)
+async def get_item(item_id: UUID, service: MyService = Depends(get_my_service)):
+    item = await service.get_item_by_id(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+@router.post("/items", response_model=MyResponse, status_code=201)
+async def create_item(
+    create_request: MyCreateRequest,
+    service: MyService = Depends(get_my_service)
+):
+    return await service.create_item(create_request)
+
+@router.put("/items/{item_id}", response_model=MyResponse)
+async def update_item(
+    item_id: UUID,
+    update_request: MyUpdateRequest,
+    service: MyService = Depends(get_my_service)
+):
+    item = await service.update_item(item_id, update_request)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+```
+
+## DTO Architecture
+
+This project follows a clean separation between database entities and API contracts using Data Transfer Objects (DTOs).
+
+### DTO Structure
+- **Request DTOs**: Input validation and data coming into the API
+- **Response DTOs**: Standardized output format for API responses  
+- **Domain Models**: Database entities (SQLModel) separate from API contracts
+
+### Benefits
+- **Type Safety**: Pydantic validation for all API inputs/outputs
+- **API Stability**: Changes to database schema don't break API contracts
+- **Clear Contracts**: Explicit definition of what data is expected/returned
+- **Input Validation**: Automatic validation of request data with helpful error messages
+- **Documentation**: Auto-generated OpenAPI schemas with examples
+
+### Best Practices
+1. **Never expose database models directly** in API endpoints
+2. **Use specific DTOs** for different operations (Create vs Update vs Response)
+3. **Include validation rules** and examples in DTO definitions
+4. **Transform at service layer** between DTOs and domain models
+5. **Use `exclude_none=True`** when converting update DTOs to avoid overwriting with null values
+
+## Repository Architecture
+
+This project uses a base repository pattern that provides common CRUD operations for all entities. The `BaseRepository<T>` class offers:
+
+### Built-in Operations
+- `create(entity: T)` - Create new entity
+- `get_by_id(id: UUID)` / `find_by_id(id: UUID)` - Get entity by ID
+- `get_all(limit, offset)` - Get all entities with pagination (no filtering)
+- `find_all(limit, offset, **criteria)` - Find entities with optional filtering and pagination
+- `update(entity: T)` - Update existing entity
+- `update_by_id(id: UUID, update_data: dict)` - Update entity by ID with data
+- `delete_by_id(id: UUID)` - Delete entity by ID
+- `exists(id: UUID)` - Check if entity exists
+- `find_by_criteria(**criteria)` - Find entities by field criteria (alias for find_all)
+
+### Usage Example
+```python
+# All repositories inherit these operations
+template_repo = TemplateRepository(db_provider)
+
+# Basic CRUD
+template = await template_repo.get_by_id(uuid)
+all_templates = await template_repo.get_all(limit=10)
+await template_repo.delete_by_id(uuid)
+
+# Filtering with find_all (more flexible)
+published = await template_repo.find_all(status="PUBLISHED")
+recent_drafts = await template_repo.find_all(status="DRAFT", limit=5)
+
+# Alternative syntax for filtering
+published = await template_repo.find_by_criteria(status="PUBLISHED")
 ```
 
 Include in `app/main.py`:
