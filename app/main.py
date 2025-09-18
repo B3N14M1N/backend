@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from app.api.routers.test_template import router as test_router
+from app.api.routers.template_router import router as template_router
 from app.core.database import get_db_provider
 
 
@@ -26,4 +26,4 @@ async def healthz():
     return {"status": "ok"}
 
 
-app.include_router(test_router)
+app.include_router(template_router)
